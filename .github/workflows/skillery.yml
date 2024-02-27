@@ -1,0 +1,84 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Backend_CI_CD
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "master" branch
+  push:
+    branches: ["master"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+      
+      - name: Setup redis
+        uses: supercharge/redis-github-action@1.2.0
+        with: 
+          redis-version: 6
+
+      - name: Install redis cli # so we can test the server
+        run: sudo apt-get install -y redis-tools
+
+      - name: Verify that redis is up
+        run: redis-cli ping
+        
+      # Runs a single command using the runners shell
+      - name: Skillery Backend
+        working-directory: ./backend
+        run: echo "Skillery Backend"
+
+      # Runs a set of commands using the runners shell
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "16.x"
+      - name: create env file
+        working-directory: ./backend
+        run: |
+          touch .env
+          echo PORT=${{ secrets.PORT }} >> .env
+          echo MONGO_URI=${{ secrets.MONGO_URI }} >> .env
+          echo JWT_SECRET=${{ secrets.JWT_SECRET }} >> .env
+          echo FRONTEND_URL=${{ secrets.FRONTEND_URL }} >> .env
+          echo SMTP_HOST=${{ secrets.SMTP_HOST }} >> .env
+          echo SMTP_PORT=${{ secrets.SMTP_PORT }} >> .env
+          echo SMTP_USER=${{ secrets.SMTP_USER }} >> .env
+          echo SMTP_PASS=${{ secrets.SMTP_PASS }} >> .env
+          echo CLOUDINARY_CLIENT_NAME=${{ secrets.CLOUDINARY_CLIENT_NAME }} >> .env
+          echo CLOUDINARY_CLIENT_API=${{ secrets.CLOUDINARY_CLIENT_API }} >> .env
+          echo CLOUDINARY_CLIENT_SECRET=${{ secrets.CLOUDINARY_CLIENT_SECRET }} >> .env
+          echo PLAN_ID=${{ secrets.PLAN_ID }} >> .env
+          echo RAZORPAY_API_KEY=${{ secrets.RAZORPAY_API_KEY }} >> .env
+          echo RAZORPAY_API_SECRET=${{ secrets.RAZORPAY_API_SECRET }} >> .env
+          echo REFUND_DAYS=${{ secrets.REFUND_DAYS }} >> .env
+          echo MY_MAIL=${{ secrets.MY_MAIL }} >> .env
+          cat .env
+
+      - name: NPM install, build and test
+        working-directory: ./backend
+        run: |
+          npm install --force
+          npm test
+  deploy:
+    name: Deploy
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to production
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.SERVICE_ID }} # Can be found as part of the Deploy Hook
+          api-key: ${{ secrets.RENDER_API_KEY }} # Create your API key in Render Dashboard > Account Settings
